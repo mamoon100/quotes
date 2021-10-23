@@ -3,46 +3,153 @@
  */
 package quotes;
 
-import com.google.gson.Gson;
+import com.google.gson.*;
 import com.google.gson.stream.JsonReader;
 
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 
 
 public class App {
+
+
     public static void main(String[] args) {
+        // this will load the whole offline quotes.
+        ArrayList<Qoute> allQoutes = qouteOffline();
+
+        if (args.length > 1) {
+            switch (args[1].toLowerCase()) {
+                case "author":
+                    qouteByAuthor(args[2], allQoutes);
+                    break;
+                case "contains":
+                    qouteByWord(args[2], allQoutes);
+                    break;
+                case "tags":
+                    qoutesByTag(args[1], allQoutes);
+                    break;
+                default:
+                    System.out.println("please Enter author, contains or tags");
+            }
+
+        } else if (args.length > 0) {
+            switch (args[0].toLowerCase()) {
+                case "online":
+                    HttpURLConnection connection = getConnection("http://api.forismatic.com/api/1.0/?method=getQuote&format=json&lang=en");
+                    assert connection != null;
+                    if (getResCode(connection) != 200) {
+                        System.out.println("\nThere was a problem connecting to the api switching to the offline mode\n");
+                        int randomQouteIndex = (int) (Math.random() * allQoutes.size());
+                        System.out.println(allQoutes.get(randomQouteIndex).toString());
+                    } else {
+                        online(allQoutes);
+                    }
+                    break;
+                case "offline":
+                    int randomQouteIndex = (int) (Math.random() * allQoutes.size());
+                    System.out.println(allQoutes.get(randomQouteIndex).toString());
+                    break;
+                default:
+                    System.out.println("please type online or offline");
+
+            }
+        } else {
+            HttpURLConnection connection = getConnection("http://api.forismatic.com/api/1.0/?method=getQuote&format=json&lang=en");
+            assert connection != null;
+            if (getResCode(connection) != 200) {
+                System.out.println("There was a problem connecting to the api switching to the offline mode");
+                int randomQouteIndex = (int) (Math.random() * allQoutes.size());
+                System.out.println(allQoutes.get(randomQouteIndex).toString());
+            } else {
+                online(allQoutes);
+            }
+        }
+    }
+
+    public static ArrayList<Qoute> qouteOffline() {
+        ArrayList<Qoute> allQoutes = new ArrayList<>();
         try {
             Gson gson = new Gson();
             JsonReader reader = new JsonReader(new FileReader("src/main/resources/recentquotes.json"));
             reader.beginArray();
-            ArrayList<Qoute> allQoutes = new ArrayList<>();
+
             while (reader.hasNext()) {
                 Qoute qoute = gson.fromJson(reader, Qoute.class);
                 allQoutes.add(qoute);
             }
             reader.endArray();
-            if (args.length > 0) {
-                switch (args[0]) {
-                    case "author":
-                        qouteByAuthor(args[1], allQoutes);
-                        break;
-                    case "contains":
-                        qouteByWord(args[1], allQoutes);
-                        break;
-                    default:
-                        break;
-                }
-            } else {
-                int randomQouteIndex = (int) (Math.random() * allQoutes.size());
-                System.out.println(allQoutes.get(randomQouteIndex).toString());
-            }
 
         } catch (IOException e) {
             System.out.println("Wrong file path");
-//            e.printStackTrace();
         }
+        return allQoutes;
+    }
+
+
+    public static void online(ArrayList<Qoute> allQoutes) {
+        try {
+            Qoute quoteToWrite = onlineQuote();
+            Gson gson = new Gson();
+            allQoutes.add(quoteToWrite);
+            String jsonElement = gson.toJson(allQoutes);
+            FileWriter fileWriter = new FileWriter("src/main/resources/recentquotes.json", false);
+            fileWriter.write(jsonElement);
+            fileWriter.flush();
+            System.out.println(quoteToWrite);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    public static HttpURLConnection getConnection(String site) {
+        try {
+            URL url = new URL(site);
+            return (HttpURLConnection) url.openConnection();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public static int getResCode(HttpURLConnection connection) {
+        try {
+            connection.setRequestMethod("GET");
+            connection.connect();
+            return connection.getResponseCode();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return 500;
+        }
+    }
+
+    public static Qoute onlineQuote() {
+        try {
+            HttpURLConnection connection = getConnection("http://api.forismatic.com/api/1.0/?method=getQuote&format=json&lang=en");
+            assert connection != null;
+            int resCode = getResCode(connection);
+            if (resCode != 200) {
+                throw new RuntimeException("HttpResponseCode: " + resCode);
+            } else {
+                Gson gson = new Gson();
+                InputStream inputStream = connection.getInputStream();
+                InputStreamReader streamReader = new InputStreamReader(inputStream);
+                BufferedReader bufferedReader = new BufferedReader(streamReader);
+                String line = bufferedReader.readLine();
+                OnlineQuote quote = gson.fromJson(line, OnlineQuote.class);
+                return new Qoute(quote.getQuoteAuthor(), quote.getQuoteText());
+            }
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+            System.out.println("The url is not acceptable");
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.out.println("The connection did not open");
+        }
+        return null;
     }
 
     public static ArrayList<Qoute> qouteByAuthor(String name, ArrayList<Qoute> qoutes) {
@@ -63,5 +170,14 @@ public class App {
         return tempQoute;
     }
 
-    
+    public static ArrayList<Qoute> qoutesByTag(String word, ArrayList<Qoute> qoutes) {
+        ArrayList<Qoute> tempQoute = new ArrayList<>();
+        for (Qoute q : qoutes) if (q.getTags().contains(word)) tempQoute.add(q);
+        int randomQouteIndex = (int) (Math.random() * tempQoute.size());
+        System.out.println(tempQoute.get(randomQouteIndex));
+        // the return list is only for testing.
+        return tempQoute;
+    }
+
+
 }

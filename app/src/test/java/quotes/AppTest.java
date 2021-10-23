@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 
 import java.io.FileReader;
 import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -71,6 +73,21 @@ class AppTest {
             e.printStackTrace();
             assertTrue(false);
         }
+
+    }
+
+    @Test
+    public void onlineTest() {
+        String site = "http://api.forismatic.com/api/1.0/?method=getQuote&format=json&lang=en";
+        HttpURLConnection con = null;
+        try {
+            URL url = new URL(site);
+            con = (HttpURLConnection) url.openConnection();
+        } catch (IOException e) {
+            e.printStackTrace();
+            assertTrue(false);
+        }
+        assertEquals(App.getResCode(con), 200, "There was a problem in getting the response code");
 
     }
 
