@@ -21,6 +21,14 @@ public class Qoute {
         this.text = text;
     }
 
+    public Qoute(String author, String text) {
+        this.likes = "0 likes";
+        this.author = author;
+        this.text = text;
+        this.tags = new ArrayList<>();
+        this.tags.add("online");
+    }
+
     public ArrayList<String> getTags() {
         return tags;
     }
